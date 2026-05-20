@@ -2,7 +2,9 @@ name: Build Balong Flash for Windows
 
 on:
   push:
-    branches: [ master, main ]
+    branches:
+      - master
+      - main
   workflow_dispatch:
 
 jobs:
@@ -10,79 +12,30 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
+      - name: Checkout repository
+        uses: actions/checkout@v4
         
-    - name: Install cross-compiler
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y mingw-w64
+      - name: Install MinGW64
+        run: sudo apt-get update && sudo apt-get install -y mingw-w64
         
-    - name: Debug - list files
-      run: |
-        echo "Current directory:"
-        pwd
-        ls -la
-        echo "Checking for required files:"
-        test -f balong_flash.c && echo "OK: balong_flash.c exists" || echo "MISSING: balong_flash.c"
-        test -f Makefile && echo "OK: Makefile exists" || echo "MISSING: Makefile"
+      - name: Create missing printf.h header
+        run: echo "#include <stdio.h>" > printf.h
         
-    - name: Check includes
-      run: grep -n "^#include" balong_flash.c || true
+      - name: Create build file
+        run: |
+          if [ ! -f build ]; then
+            echo "1" > build
+          fi
+          
+      - name: Build executable for Windows
+        run: make CC=x86_64-w64-mingw32-gcc LIBS="-lz" CFLAGS="-O2 -I."
         
-    - name: Create missing printf.h
-      run: |
-        if [ ! -f printf.h ]; then
-          cat > printf.h << 'EOF'
-#ifndef PRINTF_H
-#define PRINTF_H
-#include <stdio.h>
-#include <stdarg.h>
-#ifdef __cplusplus
-extern "C" {
-#endif
-static inline int my_printf(const char *format, ...) {
-    va_list args;
-    va_start(args, format);
-    int result = vprintf(format, args);
-    va_end(args);
-    return result;
-}
-#define printf my_printf
-#ifdef __cplusplus
-}
-#endif
-#endif
-EOF
-        fi
+      - name: Rename to .exe
+        run: mv balong_flash balong_flash.exe || echo "File already renamed"
         
-    - name: Setup build number
-      run: |
-        if [ ! -f build ]; then 
-          echo "1" > build
-        fi
-        echo "Build number: $(cat build)"
-        
-    - name: Build executable
-      run: |
-        make clean
-        make CC=x86_64-w64-mingw32-gcc LIBS="-lz" CFLAGS="-O2 -Wunused -Wno-unused-result -D BUILDNO=$(cat build) -D_7ZIP_ST -I."
-        
-    - name: Rename to exe
-      run: |
-        if [ -f balong_flash ]; then
-          mv balong_flash balong_flash_x64.exe
-          ls -lh balong_flash_x64.exe
-        else
-          echo "Build failed - executable not found"
-          exit 1
-        fi
-        
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: balong_flash_windows_x64
-        path: balong_flash_x64.exe
-        if-no-files-found: error
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: balong_flash_windows
+          path: balong_flash.exe
+          if-no-files-found: error
