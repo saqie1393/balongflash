@@ -13,7 +13,7 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0  # Get all history and files
+        fetch-depth: 0
         
     - name: Install cross-compiler
       run: |
@@ -22,35 +22,27 @@ jobs:
         
     - name: Debug - list files
       run: |
-        echo "=== Current directory ==="
+        echo "Current directory:"
         pwd
         ls -la
-        echo "=== Checking for required files ==="
-        test -f balong_flash.c && echo "✓ balong_flash.c exists" || echo "✗ balong_flash.c missing"
-        test -f Makefile && echo "✓ Makefile exists" || echo "✗ Makefile missing"
+        echo "Checking for required files:"
+        test -f balong_flash.c && echo "OK: balong_flash.c exists" || echo "MISSING: balong_flash.c"
+        test -f Makefile && echo "OK: Makefile exists" || echo "MISSING: Makefile"
         
-    - name: Check includes in balong_flash.c
-      run: |
-        echo "=== All includes from balong_flash.c ==="
-        grep -n "^#include" balong_flash.c
+    - name: Check includes
+      run: grep -n "^#include" balong_flash.c || true
         
-    - name: Create missing headers if needed
+    - name: Create missing printf.h
       run: |
-        # Create printf.h if missing
         if [ ! -f printf.h ]; then
-          echo "Creating printf.h..."
           cat > printf.h << 'EOF'
 #ifndef PRINTF_H
 #define PRINTF_H
-
 #include <stdio.h>
 #include <stdarg.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-// Custom printf implementation for Windows
 static inline int my_printf(const char *format, ...) {
     va_list args;
     va_start(args, format);
@@ -58,47 +50,35 @@ static inline int my_printf(const char *format, ...) {
     va_end(args);
     return result;
 }
-
 #define printf my_printf
-
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* PRINTF_H */
+#endif
 EOF
         fi
         
-    - name: Build number
+    - name: Setup build number
       run: |
         if [ ! -f build ]; then 
           echo "1" > build
-        else
-          echo "Build number: $(cat build)"
         fi
+        echo "Build number: $(cat build)"
         
     - name: Build executable
       run: |
         make clean
-        make CC=x86_64-w64-mingw32-gcc \
-             LIBS="-lz" \
-             CFLAGS="-O2 -Wunused -Wno-unused-result -D BUILDNO=$(cat build) -D_7ZIP_ST -I."
-             
-    - name: Prepare final executable
+        make CC=x86_64-w64-mingw32-gcc LIBS="-lz" CFLAGS="-O2 -Wunused -Wno-unused-result -D BUILDNO=$(cat build) -D_7ZIP_ST -I."
+        
+    - name: Rename to exe
       run: |
         if [ -f balong_flash ]; then
           mv balong_flash balong_flash_x64.exe
-          echo "✓ Build successful"
           ls -lh balong_flash_x64.exe
         else
-          echo "✗ Build failed - executable not found"
+          echo "Build failed - executable not found"
           exit 1
         fi
-        
-    - name: Test executable
-      run: |
-        file balong_flash_x64.exe
-        x86_64-w64-mingw32-objdump -p balong_flash_x64.exe | head -20
         
     - name: Upload artifact
       uses: actions/upload-artifact@v4
