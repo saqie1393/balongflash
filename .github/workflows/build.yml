@@ -18,24 +18,74 @@ jobs:
       - name: Install MinGW64
         run: sudo apt-get update && sudo apt-get install -y mingw-w64
         
-      - name: Create missing printf.h header
-        run: echo "#include <stdio.h>" > printf.h
-        
+      - name: Create all missing headers
+        run: |
+          # Create printf.h
+          cat > printf.h << 'EOF'
+          #ifndef PRINTF_H
+          #define PRINTF_H
+          #include <stdio.h>
+          #include <stdarg.h>
+          static inline int my_printf(const char *fmt, ...) {
+              va_list args;
+              va_start(args, fmt);
+              int result = vprintf(fmt, args);
+              va_end(args);
+              return result;
+          }
+          #define printf my_printf
+          #endif
+          EOF
+          
+          # Create buildno.h
+          cat > buildno.h << 'EOF'
+          #ifndef BUILDNO_H
+          #define BUILDNO_H
+          #define BUILDNO 293
+          #endif
+          EOF
+          
+          # Create any other potentially missing headers
+          cat > config.h << 'EOF'
+          #ifndef CONFIG_H
+          #define CONFIG_H
+          /* Default configuration */
+          #endif
+          EOF
+          
       - name: Create build file
         run: |
           if [ ! -f build ]; then
             echo "1" > build
           fi
+          echo "Build number from file: $(cat build)"
           
-      - name: Build executable for Windows
-        run: make CC=x86_64-w64-mingw32-gcc LIBS="-lz" CFLAGS="-O2 -I."
-        
+      - name: Show what headers are included
+        run: |
+          echo "=== Headers included in balong_flash.c ==="
+          grep "^#include" balong_flash.c | head -20
+          
+      - name: Build executable
+        run: |
+          make clean
+          make CC=x86_64-w64-mingw32-gcc LIBS="-lz" CFLAGS="-O2 -I."
+          
       - name: Rename to .exe
-        run: mv balong_flash balong_flash.exe || echo "File already renamed"
-        
+        run: |
+          if [ -f balong_flash ]; then
+            mv balong_flash balong_flash_x64.exe
+            echo "Build successful!"
+            ls -lh balong_flash_x64.exe
+            file balong_flash_x64.exe
+          else
+            echo "Build failed - checking for other output files"
+            ls -la
+            exit 1
+          fi
+          
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: balong_flash_windows
-          path: balong_flash.exe
+          name: balong_flash_windows_x64
+          path: balong_flash_x64.exe
           if-no-files-found: error
