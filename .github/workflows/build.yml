@@ -1,0 +1,51 @@
+name: Build Balong Flash
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y zlib1g-dev
+        
+    - name: Create build file (if not exists)
+      run: |
+        if [ ! -f build ]; then
+          echo "1" > build
+        fi
+        
+    - name: Build balong_flash
+      run: |
+        make
+        
+    - name: Verify build
+      run: |
+        ls -la balong_flash
+        file balong_flash
+        ldd balong_flash || echo "Static build or no dependencies"
+        
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: balong-flash
+        path: balong_flash
+        if-no-files-found: error
+        
+    - name: Upload with build number
+      uses: actions/upload-artifact@v4
+      with:
+        name: balong-flash-build-$(cat build)
+        path: balong_flash
+        if-no-files-found: error
