@@ -1,10 +1,8 @@
-name: Build Balong Flash
+name: Build Balong Flash for Windows x64
 
 on:
   push:
-    branches: [ master, main ]
-  pull_request:
-    branches: [ master, main ]
+    branches: [ master ]
   workflow_dispatch:
 
 jobs:
@@ -12,40 +10,33 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      
-    - name: Install dependencies
+    - uses: actions/checkout@v4
+    
+    - name: Install MinGW64
       run: |
         sudo apt-get update
-        sudo apt-get install -y zlib1g-dev
+        sudo apt-get install -y mingw-w64
         
-    - name: Create build file (if not exists)
+    - name: Create build file
       run: |
-        if [ ! -f build ]; then
-          echo "1" > build
-        fi
+        if [ ! -f build ]; then echo "1" > build; fi
         
-    - name: Build balong_flash
+    - name: Build for Windows x64
       run: |
-        make
-        
-    - name: Verify build
+        make CC=x86_64-w64-mingw32-gcc \
+             LIBS="-lz" \
+             CFLAGS="-O2 -Wunused -Wno-unused-result -D BUILDNO=$(cat build) -D_7ZIP_ST"
+             
+    - name: Rename to .exe
+      run: mv balong_flash balong_flash.exe
+      
+    - name: Verify executable
       run: |
-        ls -la balong_flash
-        file balong_flash
-        ldd balong_flash || echo "Static build or no dependencies"
+        file balong_flash.exe
+        x86_64-w64-mingw32-objdump -p balong_flash.exe | grep "DLL Name" || true
         
-    - name: Upload artifact
+    - name: Upload
       uses: actions/upload-artifact@v4
       with:
-        name: balong-flash
-        path: balong_flash
-        if-no-files-found: error
-        
-    - name: Upload with build number
-      uses: actions/upload-artifact@v4
-      with:
-        name: balong-flash-build-$(cat build)
-        path: balong_flash
-        if-no-files-found: error
+        name: balong_flash_windows_x64
+        path: balong_flash.exe
