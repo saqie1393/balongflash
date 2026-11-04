@@ -1,4 +1,4 @@
-name: Build Balong Flash with Auto Headers
+name: Build Balong Flash (Windows)
 
 on:
   push:
@@ -7,55 +7,65 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-windows:
     runs-on: ubuntu-latest
-    
+
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            cc: x86_64-w64-mingw32-gcc
+            out: balong_flash-x64.exe
+          - arch: i686
+            cc: i686-w64-mingw32-gcc
+            out: balong_flash-x86.exe
+
     steps:
-      - uses: actions/checkout@v4
-      
-      - name: Install MinGW
-        run: sudo apt-get install -y mingw-w64
-        
-      - name: Auto-detect and create missing headers
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install MinGW cross-compiler
         run: |
-          # Get all includes from balong_flash.c
-          INCLUDES=$(grep "^#include \"" balong_flash.c | sed 's/#include "//' | sed 's/"//')
-          
-          # Create each missing header
-          for header in $INCLUDES; do
-            if [ ! -f "$header" ]; then
-              echo "Creating missing header: $header"
-              cat > "$header" << 'EOF'
-          #ifndef AUTO_CREATED_HEADER
-          #define AUTO_CREATED_HEADER
-          /* Auto-generated header to satisfy build dependencies */
-          #define DUMMY_VALUE 1
-          #endif
-          EOF
-            else
-              echo "Header exists: $header"
-            fi
-          done
-          
-      - name: Display all headers
+          sudo apt-get update
+          sudo apt-get install -y mingw-w64 make
+
+      - name: Verify source files exist
         run: |
-          echo "=== All header files in repository ==="
+          echo "=== Source files ==="
+          ls -la
+          echo "=== Header files ==="
           find . -name "*.h" -type f
-          
-      - name: Build
+          echo "=== Includes in balong_flash.c ==="
+          grep -E '^\s*#include' balong_flash.c || echo "No includes found"
+
+      - name: Build (static)
         run: |
+          set -e
+          # Makefile ko force karo ke build dir ban jaye
           test -f build || echo "1" > build
-          make CC=x86_64-w64-mingw32-gcc CFLAGS="-O2 -I." || {
-            echo "Build failed. Checking compilation command..."
-            exit 1
-          }
-          
-      - name: Package
+
+          make CC=${{ matrix.cc }} \
+               CFLAGS="-O2 -I. -static -D_WIN32_WINNT=0x0600" \
+               LDFLAGS="-static" \
+               V=1
+
+      - name: Rename output
         run: |
-          [ -f balong_flash ] && mv balong_flash balong_flash.exe
-          [ -f balong_flash.exe ] && echo "Success!" || exit 1
-          
-      - uses: actions/upload-artifact@v4
+          set -e
+          if [ -f balong_flash.exe ]; then
+            mv balong_flash.exe ${{ matrix.out }}
+          elif [ -f balong_flash ]; then
+            mv balong_flash ${{ matrix.out }}
+          else
+            echo "Build output not found!"
+            ls -la
+            exit 1
+          fi
+          file ${{ matrix.out }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: balong-flash
-          path: balong_flash.exe
+          name: balong-flash-${{ matrix.arch }}
+          path: ${{ matrix.out }}
+          if-no-files-found: error
