@@ -10,16 +10,6 @@ jobs:
   build-windows:
     runs-on: ubuntu-latest
 
-    strategy:
-      matrix:
-        include:
-          - arch: x86_64
-            cc: x86_64-w64-mingw32-gcc
-            out: balong_flash-x64.exe
-          - arch: i686
-            cc: i686-w64-mingw32-gcc
-            out: balong_flash-x86.exe
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -29,23 +19,28 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y mingw-w64 make
 
+      - name: Verify balong_flash.c is C code
+        run: |
+          # Check agar ghalti se YAML content C file mein to nahi
+          if head -5 balong_flash.c | grep -q "name:\|uses:\|jobs:"; then
+            echo "ERROR: balong_flash.c mein YAML content hai! Git se restore karein."
+            exit 1
+          fi
+          echo "balong_flash.c looks like valid C code."
+
       - name: Generate buildno.h
         run: |
-          # Visual Studio ke PreBuildEvent ki tarah buildno.h generate kar rahe hain
+          # build file se number utha kar header banayein
           echo "#define BUILDNO $(cat build 2>/dev/null || echo 1)" > winbuild/balong_flash/buildno.h
 
-      - name: Compile and Link
+      - name: Compile Windows Executable (x86_64)
         run: |
           set -e
           
-          # -Iwinbuild/balong_flash : printf.h, getopt.h, buildno.h ke liye
-          # -Iwinbuild/zlib          : zlib.h ke liye
-          # -Dprintf=win_printf      : printf.h ke custom function ko handle karne ke liye
-          
-          ${{ matrix.cc }} \
-            -O2 -static -D_WIN32_WINNT=0x0600 -D_WIN32 \
+          x86_64-w64-mingw32-gcc \
+            -O2 -static -D_WIN32_WINNT=0x0600 -D_WIN32 -D_MSC_VER=1900 \
             -I. -Iwinbuild/balong_flash -Iwinbuild/zlib \
-            -Dprintf=win_printf \
+            -w \
             balong_flash.c \
             flasher.c \
             ptable.c \
@@ -63,23 +58,12 @@ jobs:
             winbuild/zlib/trees.c \
             winbuild/zlib/uncompr.c \
             winbuild/zlib/zutil.c \
-            -o balong_flash.exe \
+            -o balong_flash_x64.exe \
             -lsetupapi -lws2_32
 
-      - name: Rename output
-        run: |
-          set -e
-          if [ -f balong_flash.exe ]; then
-            mv balong_flash.exe ${{ matrix.out }}
-          else
-            echo "Build output not found!"
-            exit 1
-          fi
-          file ${{ matrix.out }}
-
-      - name: Upload artifact
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: balong-flash-${{ matrix.arch }}
-          path: ${{ matrix.out }}
+          name: balong-flash-x64
+          path: balong_flash_x64.exe
           if-no-files-found: error
