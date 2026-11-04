@@ -29,25 +29,33 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y mingw-w64 make
 
-      - name: Verify source files exist
+      - name: Verify required files exist
         run: |
-          echo "=== Source files ==="
-          ls -la
-          echo "=== Header files ==="
-          find . -name "*.h" -type f
-          echo "=== Includes in balong_flash.c ==="
-          grep -E '^\s*#include' balong_flash.c || echo "No includes found"
+          echo "=== Checking Windows headers ==="
+          ls -la winbuild/*.h
+          echo "=== Checking zlib sources ==="
+          ls -la winbuild/zlib/*.c | head -5
 
-      - name: Build (static)
+      - name: Build (static, correct includes, with zlib)
         run: |
           set -e
-          # Makefile ko force karo ke build dir ban jaye
           test -f build || echo "1" > build
 
+          # MinGW ke liye flags. -Iwinbuild aur -Iwinbuild/zlib add kiye gaye hain.
+          # Zlib ki saari .c files ko explicitly compile kar rahe hain taake linker ko undefined reference na aaye.
           make CC=${{ matrix.cc }} \
-               CFLAGS="-O2 -I. -static -D_WIN32_WINNT=0x0600" \
+               CFLAGS="-O2 -I. -Iwinbuild -Iwinbuild/zlib -static -D_WIN32_WINNT=0x0600" \
                LDFLAGS="-static" \
-               V=1
+               LIBS="winbuild/zlib/*.c -lws2_32" \
+               V=1 || {
+                 echo "Makefile failed! Attempting manual compilation..."
+                 
+                 # Agar Makefile fail ho jaye, to manual compile karte hain
+                 ${{ matrix.cc }} -O2 -I. -Iwinbuild -Iwinbuild/zlib -static -D_WIN32_WINNT=0x0600 \
+                   balong_flash.c hdlcio.c ptable.c flasher.c util.c signver.c \
+                   winbuild/getopt.c winbuild/zlib/*.c \
+                   -o balong_flash.exe -lws2_32
+               }
 
       - name: Rename output
         run: |
