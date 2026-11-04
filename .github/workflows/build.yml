@@ -29,44 +29,50 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y mingw-w64 make
 
-      - name: Verify required files exist
+      - name: Generate buildno.h
         run: |
-          echo "=== Checking Windows headers ==="
-          ls -la winbuild/*.h
-          echo "=== Checking zlib sources ==="
-          ls -la winbuild/zlib/*.c | head -5
+          # Visual Studio ke PreBuildEvent ki tarah buildno.h generate kar rahe hain
+          echo "#define BUILDNO $(cat build 2>/dev/null || echo 1)" > winbuild/balong_flash/buildno.h
 
-      - name: Build (static, correct includes, with zlib)
+      - name: Compile and Link
         run: |
           set -e
-          test -f build || echo "1" > build
-
-          # MinGW ke liye flags. -Iwinbuild aur -Iwinbuild/zlib add kiye gaye hain.
-          # Zlib ki saari .c files ko explicitly compile kar rahe hain taake linker ko undefined reference na aaye.
-          make CC=${{ matrix.cc }} \
-               CFLAGS="-O2 -I. -Iwinbuild -Iwinbuild/zlib -static -D_WIN32_WINNT=0x0600" \
-               LDFLAGS="-static" \
-               LIBS="winbuild/zlib/*.c -lws2_32" \
-               V=1 || {
-                 echo "Makefile failed! Attempting manual compilation..."
-                 
-                 # Agar Makefile fail ho jaye, to manual compile karte hain
-                 ${{ matrix.cc }} -O2 -I. -Iwinbuild -Iwinbuild/zlib -static -D_WIN32_WINNT=0x0600 \
-                   balong_flash.c hdlcio.c ptable.c flasher.c util.c signver.c \
-                   winbuild/getopt.c winbuild/zlib/*.c \
-                   -o balong_flash.exe -lws2_32
-               }
+          
+          # -Iwinbuild/balong_flash : printf.h, getopt.h, buildno.h ke liye
+          # -Iwinbuild/zlib          : zlib.h ke liye
+          # -Dprintf=win_printf      : printf.h ke custom function ko handle karne ke liye
+          
+          ${{ matrix.cc }} \
+            -O2 -static -D_WIN32_WINNT=0x0600 -D_WIN32 \
+            -I. -Iwinbuild/balong_flash -Iwinbuild/zlib \
+            -Dprintf=win_printf \
+            balong_flash.c \
+            flasher.c \
+            ptable.c \
+            util.c \
+            signver.c \
+            hdlcio_win32.c \
+            lzma/Alloc.c \
+            lzma/LzmaDec.c \
+            winbuild/balong_flash/getopt.c \
+            winbuild/zlib/adler32.c \
+            winbuild/zlib/crc32.c \
+            winbuild/zlib/inffast.c \
+            winbuild/zlib/inflate.c \
+            winbuild/zlib/inftrees.c \
+            winbuild/zlib/trees.c \
+            winbuild/zlib/uncompr.c \
+            winbuild/zlib/zutil.c \
+            -o balong_flash.exe \
+            -lsetupapi -lws2_32
 
       - name: Rename output
         run: |
           set -e
           if [ -f balong_flash.exe ]; then
             mv balong_flash.exe ${{ matrix.out }}
-          elif [ -f balong_flash ]; then
-            mv balong_flash ${{ matrix.out }}
           else
             echo "Build output not found!"
-            ls -la
             exit 1
           fi
           file ${{ matrix.out }}
