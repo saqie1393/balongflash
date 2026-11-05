@@ -221,7 +221,7 @@ static int find_port(int* port_no, char* port_name)
         )
        )
     {
-      if (SetupDiGetDeviceRegistryPropertyA(device_info_set, &device_info_data, SPDRF_FRIENDLYNAME,
+      if (SetupDiGetDeviceRegistryPropertyA(device_info_set, &device_info_data, SPDRP_FRIENDLYNAME,
               &reg_data_type, (PBYTE)property_buffer, sizeof(property_buffer), &required_size))
       {
         p = strstr(property_buffer, " (COM");
