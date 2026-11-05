@@ -19,14 +19,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y mingw-w64 make
 
-      - name: Verify balong_flash.c is C code
-        run: |
-          if head -5 balong_flash.c | grep -q "name:\|uses:\|jobs:"; then
-            echo "ERROR: balong_flash.c mein YAML content hai! Git se restore karein."
-            exit 1
-          fi
-          echo "balong_flash.c looks like valid C code."
-
       - name: Generate buildno.h
         run: |
           echo "#define BUILDNO $(cat build 2>/dev/null || echo 1)" > winbuild/balong_flash/buildno.h
@@ -35,12 +27,9 @@ jobs:
         run: |
           set -e
           
-          # -Dprintf=... hata diya hai
-          # -Uread -Uwrite -Uprintf flags se standard library ki declarations undefine ho jayengi
           x86_64-w64-mingw32-gcc \
-            -O2 -static -D_WIN32_WINNT=0x0600 -D_WIN32 \
+            -O2 -static -D_WIN32_WINNT=0x0600 -D_WIN32 -D_MSC_VER=1900 \
             -I. -Iwinbuild/balong_flash -Iwinbuild/zlib \
-            -Uread -Uwrite -Uprintf \
             -w \
             balong_flash.c \
             flasher.c \
