@@ -35,13 +35,12 @@ jobs:
         run: |
           set -e
           
-          # Custom function names ko rename kar rahe hain taake standard library se clash na ho
+          # -Dprintf=... hata diya hai
+          # -Uread -Uwrite -Uprintf flags se standard library ki declarations undefine ho jayengi
           x86_64-w64-mingw32-gcc \
-            -O2 -static -D_WIN32_WINNT=0x0600 -D_WIN32 -D_MSC_VER=1900 \
+            -O2 -static -D_WIN32_WINNT=0x0600 -D_WIN32 \
             -I. -Iwinbuild/balong_flash -Iwinbuild/zlib \
-            -Dprintf=my_win_printf \
-            -Dread=my_win_read \
-            -Dwrite=my_win_write \
+            -Uread -Uwrite -Uprintf \
             -w \
             balong_flash.c \
             flasher.c \
