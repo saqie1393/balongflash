@@ -1,14 +1,26 @@
-name: Build Balong Flash (Windows)
+name: Build and Release Balong Flash (Windows)
 
 on:
   push:
     branches:
       - master
+    tags:
+      - 'v*' # Jab aap v1.0 waghera tag lagayenge to release banegi
   workflow_dispatch:
 
 jobs:
   build-windows:
     runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        include:
+          - arch: x64
+            cc: x86_64-w64-mingw32-gcc
+            out: balong_flash-x64.exe
+          - arch: x86
+            cc: i686-w64-mingw32-gcc
+            out: balong_flash-x86.exe
 
     steps:
       - name: Checkout repository
@@ -23,11 +35,11 @@ jobs:
         run: |
           echo "#define BUILDNO $(cat build 2>/dev/null || echo 1)" > winbuild/balong_flash/buildno.h
 
-      - name: Compile Windows Executable (x86_64)
+      - name: Compile Windows Executable (${{ matrix.arch }})
         run: |
           set -e
           
-          x86_64-w64-mingw32-gcc \
+          ${{ matrix.cc }} \
             -O2 -static -D_WIN32_WINNT=0x0600 -D_WIN32 -D_MSC_VER=1900 \
             -I. -Iwinbuild/balong_flash -Iwinbuild/zlib \
             -w \
@@ -48,13 +60,38 @@ jobs:
             winbuild/zlib/trees.c \
             winbuild/zlib/uncompr.c \
             winbuild/zlib/zutil.c \
-            -o balong_flash_x64.exe \
+            -o ${{ matrix.out }} \
             -lsetupapi -lws2_32 -luuid \
             -Wl,--allow-multiple-definition
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: balong-flash-x64
-          path: balong_flash_x64.exe
+          name: balong-flash-${{ matrix.arch }}
+          path: ${{ matrix.out }}
           if-no-files-found: error
+
+  release:
+    needs: build-windows
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') # Sirf tab chalega jab Tag lagaya jaye
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Display structure of downloaded files
+        run: ls -R artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/balong-flash-x64/balong_flash-x64.exe
+            artifacts/balong-flash-x86/balong_flash-x86.exe
+          name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
