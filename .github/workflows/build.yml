@@ -8,7 +8,7 @@ on:
 
 jobs:
   build-windows:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
@@ -21,7 +21,6 @@ jobs:
 
       - name: Verify balong_flash.c is C code
         run: |
-          # Check agar ghalti se YAML content C file mein to nahi
           if head -5 balong_flash.c | grep -q "name:\|uses:\|jobs:"; then
             echo "ERROR: balong_flash.c mein YAML content hai! Git se restore karein."
             exit 1
@@ -30,16 +29,19 @@ jobs:
 
       - name: Generate buildno.h
         run: |
-          # build file se number utha kar header banayein
           echo "#define BUILDNO $(cat build 2>/dev/null || echo 1)" > winbuild/balong_flash/buildno.h
 
       - name: Compile Windows Executable (x86_64)
         run: |
           set -e
           
+          # Custom function names ko rename kar rahe hain taake standard library se clash na ho
           x86_64-w64-mingw32-gcc \
             -O2 -static -D_WIN32_WINNT=0x0600 -D_WIN32 -D_MSC_VER=1900 \
             -I. -Iwinbuild/balong_flash -Iwinbuild/zlib \
+            -Dprintf=my_win_printf \
+            -Dread=my_win_read \
+            -Dwrite=my_win_write \
             -w \
             balong_flash.c \
             flasher.c \
