@@ -23,7 +23,7 @@ static char pdev[500]; // serial port name
 int siofd; // fd for working with serial port
 static HANDLE hSerial;
 
-static int read(int siofd, void* buf, unsigned int len)
+static int win_read(int siofd, void* buf, unsigned int len)
 {
     DWORD bytes_read = 0;
 
@@ -32,7 +32,7 @@ static int read(int siofd, void* buf, unsigned int len)
     return bytes_read;
 }
 
-static int write(int siofd, void* buf, unsigned int len)
+static int win_write(int siofd, void* buf, unsigned int len)
 {
     DWORD bytes_written = 0;
 
@@ -49,9 +49,9 @@ unsigned int send_unframed_buf(char* outcmdbuf, unsigned int outlen) {
 
 PurgeComm(hSerial, PURGE_RXCLEAR);
 
-write(siofd,"\x7e",1);  // send prefix
+win_write(siofd,"\x7e",1);  // send prefix
 
-if (write(siofd,outcmdbuf,outlen) == 0) {   printf("\n Command write error");return 0;  }
+if (win_write(siofd,outcmdbuf,outlen) == 0) {   printf("\n Command write error");return 0;  }
 FlushFileBuffers(hSerial);
 
 return 1;
@@ -71,7 +71,7 @@ unsigned int res;
 unsigned char replybuf[14000];
 
 incount=0;
-if (read(siofd,&c,1) != 1) {
+if (win_read(siofd,&c,1) != 1) {
 //  printf("\n No response from modem");
   return 0; // modem did not respond or responded incorrectly
 }
@@ -83,7 +83,7 @@ replybuf[incount++]=c;
 
 // read data array as single block when processing command 03
 if (masslen != 0) {
- res=read(siofd,replybuf+1,masslen-1);
+ res=win_read(siofd,replybuf+1,masslen-1);
  if (res != (masslen-1)) {
    printf("\nResponse from modem too short: %i bytes, expected %i bytes\n",res+1,masslen);
    dump(replybuf,res+1,0);
@@ -95,7 +95,7 @@ if (masslen != 0) {
 }
 
 // receive remaining buffer tail
-while (read(siofd,&c,1) == 1)  {
+while (win_read(siofd,&c,1) == 1)  {
  replybuf[incount++]=c;
 // printf("\n-- %02x",c);
  if (c == 0x7e) break;
@@ -221,7 +221,7 @@ static int find_port(int* port_no, char* port_name)
         )
        )
     {
-      if (SetupDiGetDeviceRegistryPropertyA(device_info_set, &device_info_data, SPDRP_FRIENDLYNAME,
+      if (SetupDiGetDeviceRegistryPropertyA(device_info_set, &device_info_data, SPDRF_FRIENDLYNAME,
               &reg_data_type, (PBYTE)property_buffer, sizeof(property_buffer), &required_size))
       {
         p = strstr(property_buffer, " (COM");
@@ -416,11 +416,10 @@ port_timeout(100);
 PurgeComm(hSerial, PURGE_RXCLEAR);
 
 // send command
-write(siofd,cbuf,strlen(cbuf));
+win_write(siofd,cbuf,strlen(cbuf));
 Sleep(100);
 
 // read result
-res=read(siofd,rbuf,200);
+res=win_read(siofd,rbuf,200);
 return res;
 }
-  
